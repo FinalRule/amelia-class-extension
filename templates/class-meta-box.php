@@ -1,27 +1,17 @@
 <?php
-// templates/class-meta-box.php
-
 if (!defined('ABSPATH')) {
     exit;
 }
 
 global $wpdb;
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// Add this right before you start getting the values
-error_log('Debug: Starting class-meta-box.php');
-var_dump($post); // This will show us if we're getting the post object
-var_dump($wpdb); // This will show us if we have database access
 
 // Get existing values
 $teacher_id = get_post_meta($post->ID, '_teacher_id', true);
 $students = get_post_meta($post->ID, '_students', true) ?: array();
-$schedule = get_post_meta($post->ID, '_class_schedule', true);
-$start_date = isset($schedule['start_date']) ? $schedule['start_date'] : '';
-$end_date = isset($schedule['end_date']) ? $schedule['end_date'] : '';
-$class_time = isset($schedule['time']) ? $schedule['time'] : '';
-$class_days = isset($schedule['days']) ? $class_days : array();
+$start_date = get_post_meta($post->ID, '_start_date', true);
+$end_date = get_post_meta($post->ID, '_end_date', true);
+$class_time = get_post_meta($post->ID, '_class_time', true);
+$class_days = get_post_meta($post->ID, '_class_days', true) ?: array();
 
 // Get providers (teachers) from Amelia users table
 $providers = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}amelia_users WHERE type = 'provider' ORDER BY firstName, lastName");
@@ -31,7 +21,7 @@ $students_list = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}amelia_users W
 ?>
 
 <div class="ace-meta-box">
-<?php wp_nonce_field('ace_save_class_meta', 'ace_class_meta_nonce'); ?>
+    <?php wp_nonce_field('ace_save_class_meta', 'ace_class_meta_nonce'); ?>
     
     <div class="ace-form-row">
         <label for="teacher_id"><?php _e('Teacher', 'amelia-class-extension'); ?></label>
@@ -182,4 +172,9 @@ $students_list = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}amelia_users W
         </div>
     </div>
     <?php endif; ?>
+</div>
+
+<!-- Attendance Modal -->
+<div id="attendance_modal" class="ace-modal" style="display: none;">
+    <!-- Content will be loaded here -->
 </div>
