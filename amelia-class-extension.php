@@ -16,22 +16,7 @@ if (!defined('ABSPATH')) {
 define('ACE_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('ACE_PLUGIN_URL', plugin_dir_url(__FILE__));
 
-// Class registration
-function ace_register_class_post_type() {
-    register_post_type('amelia_class', array(
-        'labels' => array(
-            'name' => 'Classes',
-            'singular_name' => 'Class',
-        ),
-        'public' => true,
-        'has_archive' => true,
-        'supports' => array('title', 'editor'),
-        'menu_icon' => 'dashicons-groups',
-    ));
-}
-add_action('init', 'ace_register_class_post_type');
-
-// Database tables creation
+// Create tables on plugin activation
 function ace_create_db_tables() {
     global $wpdb;
     $charset_collate = $wpdb->get_charset_collate();
@@ -60,11 +45,39 @@ function ace_create_db_tables() {
 
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql);
+
+    // Verify table creation
+    $table_name = $wpdb->prefix . 'amelia_class_sessions';
+    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'");
+    if (!$table_exists) {
+        error_log('Failed to create table: ' . $table_name);
+    }
 }
 register_activation_hook(__FILE__, 'ace_create_db_tables');
 
-// Include required files
-require_once ACE_PLUGIN_PATH . 'includes/ajax-handlers.php';
+// Class registration
+function ace_register_class_post_type() {
+    register_post_type('amelia_class', array(
+        'labels' => array(
+            'name' => 'Classes',
+            'singular_name' => 'Class',
+            'add_new' => 'Add New Class',
+            'add_new_item' => 'Add New Class',
+            'edit_item' => 'Edit Class',
+            'new_item' => 'New Class',
+            'view_item' => 'View Class',
+            'search_items' => 'Search Classes',
+            'not_found' => 'No classes found',
+            'not_found_in_trash' => 'No classes found in trash'
+        ),
+        'public' => true,
+        'has_archive' => true,
+        'supports' => array('title', 'editor'),
+        'menu_icon' => 'dashicons-groups',
+        'show_in_menu' => true
+    ));
+}
+add_action('init', 'ace_register_class_post_type');
 
 // Add meta box
 function ace_add_class_meta_box() {
@@ -84,29 +97,21 @@ function ace_class_meta_box_callback($post) {
     require_once ACE_PLUGIN_PATH . 'templates/class-meta-box.php';
 }
 
+// Save class meta and create appointments
 function ace_save_class_meta($post_id) {
-    // Verify nonce
+    // Verify nonce and permissions
     if (!isset($_POST['ace_class_meta_nonce']) || 
-        !wp_verify_nonce($_POST['ace_class_meta_nonce'], 'ace_save_class_meta')) {
-        return;
-    }
-
-    // Check autosave
-    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
-        return;
-    }
-
-    // Check permissions
-    if (!current_user_can('edit_post', $post_id)) {
+        !wp_verify_nonce($_POST['ace_class_meta_nonce'], 'ace_save_class_meta') ||
+        defined('DOING_AUTOSAVE') && DOING_AUTOSAVE ||
+        !current_user_can('edit_post', $post_id)) {
         return;
     }
 
     global $wpdb;
 
-    // Save teacher
+    // Save basic meta
     if (isset($_POST['teacher_id'])) {
-        $teacher_id = sanitize_text_field($_POST['teacher_id']);
-        update_post_meta($post_id, '_teacher_id', $teacher_id);
+        update_post_meta($post_id, '_teacher_id', sanitize_text_field($_POST['teacher_id']));
     }
 
     // Save schedule
@@ -120,132 +125,116 @@ function ace_save_class_meta($post_id) {
     update_post_meta($post_id, '_class_time', $class_time);
     update_post_meta($post_id, '_class_days', $class_days);
 
-    // Create appointments if we have all required data
-    if ($start_date && $end_date && $class_time && !empty($class_days) && !empty($teacher_id)) {
-        // Get or create a service
-        $service = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}amelia_services WHERE name = 'Class Session'");
-        if (!$service) {
-            // Create default service
-            $wpdb->insert(
-                $wpdb->prefix . 'amelia_services',
-                array(
-                    'name' => 'Class Session',
-                    'description' => 'Auto-generated service for class sessions',
-                    'color' => '#1788FB',
-                    'price' => 0,
-                    'status' => 'visible',
-                    'categoryId' => null,
-                    'minCapacity' => 1,
-                    'maxCapacity' => 20,
-                    'duration' => 3600,
-                    'timeBefore' => 0,
-                    'timeAfter' => 0,
-                    'bringingAnyone' => 0,
-                    'priority' => 0,
-                    'show' => 1
-                )
-            );
-            $service_id = $wpdb->insert_id;
+    // Check if we have all required data
+    if (empty($start_date) || empty($end_date) || empty($class_time) || 
+        empty($class_days) || empty($_POST['teacher_id'])) {
+        return;
+    }
 
-            // Link service to provider
-            $wpdb->insert(
-                $wpdb->prefix . 'amelia_providers_to_services',
-                array(
-                    'userId' => $teacher_id,
-                    'serviceId' => $service_id,
-                    'price' => 0,
-                    'minCapacity' => 1,
-                    'maxCapacity' => 20
-                )
-            );
-        } else {
-            $service_id = $service->id;
-        }
+    $teacher_id = intval($_POST['teacher_id']);
 
-        // Generate dates for appointments
-        $current = new DateTime($start_date);
-        $end = new DateTime($end_date);
-        $end->modify('+1 day'); // Include end date
-        $interval = new DateInterval('P1D');
-        $period = new DatePeriod($current, $interval, $end);
-
-        // Delete existing appointments for this class
-        $existing_sessions = $wpdb->get_results($wpdb->prepare(
-            "SELECT appointment_id FROM {$wpdb->prefix}amelia_class_sessions WHERE class_id = %d",
-            $post_id
-        ));
-
-        foreach ($existing_sessions as $session) {
-            $wpdb->delete(
-                $wpdb->prefix . 'amelia_customer_bookings',
-                array('appointmentId' => $session->appointment_id)
-            );
-            $wpdb->delete(
-                $wpdb->prefix . 'amelia_appointments',
-                array('id' => $session->appointment_id)
-            );
-        }
-
-        $wpdb->delete(
-            $wpdb->prefix . 'amelia_class_sessions',
-            array('class_id' => $post_id)
+    // Get or create service
+    $service = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}amelia_services WHERE name = 'Class Session'");
+    if (!$service) {
+        $wpdb->insert(
+            $wpdb->prefix . 'amelia_services',
+            array(
+                'name' => 'Class Session',
+                'description' => 'Automatically created for class sessions',
+                'color' => '#1788FB',
+                'price' => 0,
+                'status' => 'visible',
+                'categoryId' => null,
+                'minCapacity' => 1,
+                'maxCapacity' => 20,
+                'duration' => 3600,
+                'timeBefore' => 0,
+                'timeAfter' => 0,
+                'show' => 1
+            )
         );
+        $service_id = $wpdb->insert_id;
 
-        // Create new appointments
-        foreach ($period as $date) {
-            $day_of_week = strtolower($date->format('l'));
-            if (in_array($day_of_week, $class_days)) {
-                $booking_start = $date->format('Y-m-d') . ' ' . $class_time;
-                $booking_end = date('Y-m-d H:i:s', strtotime($booking_start . ' +1 hour'));
+        // Link service to provider
+        $wpdb->insert(
+            $wpdb->prefix . 'amelia_providers_to_services',
+            array(
+                'userId' => $teacher_id,
+                'serviceId' => $service_id,
+                'price' => 0,
+                'minCapacity' => 1,
+                'maxCapacity' => 20
+            )
+        );
+    } else {
+        $service_id = $service->id;
+    }
 
-                // Create appointment
+    // Remove existing sessions
+    $existing_sessions = $wpdb->get_results($wpdb->prepare(
+        "SELECT appointment_id FROM {$wpdb->prefix}amelia_class_sessions WHERE class_id = %d",
+        $post_id
+    ));
+
+    foreach ($existing_sessions as $session) {
+        $wpdb->delete($wpdb->prefix . 'amelia_customer_bookings', array('appointmentId' => $session->appointment_id));
+        $wpdb->delete($wpdb->prefix . 'amelia_appointments', array('id' => $session->appointment_id));
+    }
+    $wpdb->delete($wpdb->prefix . 'amelia_class_sessions', array('class_id' => $post_id));
+
+    // Create new sessions
+    $start = new DateTime($start_date);
+    $end = new DateTime($end_date);
+    $end->modify('+1 day');
+    $interval = new DateInterval('P1D');
+    $period = new DatePeriod($start, $interval, $end);
+
+    foreach ($period as $date) {
+        $day_of_week = strtolower($date->format('l'));
+        if (in_array($day_of_week, $class_days)) {
+            $booking_start = $date->format('Y-m-d') . ' ' . $class_time;
+            $booking_end = date('Y-m-d H:i:s', strtotime($booking_start . ' +1 hour'));
+
+            // Create appointment
+            $appointment_data = array(
+                'serviceId' => $service_id,
+                'providerId' => $teacher_id,
+                'status' => 'approved',
+                'bookingStart' => $booking_start,
+                'bookingEnd' => $booking_end,
+                'notifyParticipants' => 0,
+                'created' => current_time('mysql')
+            );
+
+            $wpdb->insert($wpdb->prefix . 'amelia_appointments', $appointment_data);
+            $appointment_id = $wpdb->insert_id;
+
+            if ($appointment_id) {
+                // Link to class
                 $wpdb->insert(
-                    $wpdb->prefix . 'amelia_appointments',
+                    $wpdb->prefix . 'amelia_class_sessions',
                     array(
-                        'serviceId' => $service_id,
-                        'providerId' => $teacher_id,
-                        'status' => 'approved',
-                        'bookingStart' => $booking_start,
-                        'bookingEnd' => $booking_end,
-                        'notifyParticipants' => 0,
-                        'created' => current_time('mysql'),
-                        'locationId' => null,
-                        'internalNotes' => 'Created by Class Extension',
-                        'deposit' => 0,
-                        'aggregatedPrice' => 1
+                        'class_id' => $post_id,
+                        'appointment_id' => $appointment_id,
+                        'created_at' => current_time('mysql')
                     )
                 );
 
-                $appointment_id = $wpdb->insert_id;
-
-                if ($appointment_id) {
-                    // Link appointment to class
-                    $wpdb->insert(
-                        $wpdb->prefix . 'amelia_class_sessions',
-                        array(
-                            'class_id' => $post_id,
-                            'appointment_id' => $appointment_id,
-                            'created_at' => current_time('mysql')
-                        )
-                    );
-
-                    // Add existing students to appointment
-                    $students = get_post_meta($post_id, '_students', true);
-                    if (!empty($students)) {
-                        foreach ($students as $student_id) {
-                            $wpdb->insert(
-                                $wpdb->prefix . 'amelia_customer_bookings',
-                                array(
-                                    'appointmentId' => $appointment_id,
-                                    'customerId' => $student_id,
-                                    'status' => 'approved',
-                                    'price' => 0,
-                                    'persons' => 1,
-                                    'created' => current_time('mysql'),
-                                    'aggregatedPrice' => 1
-                                )
-                            );
-                        }
+                // Add existing students
+                $students = get_post_meta($post_id, '_students', true);
+                if (!empty($students) && is_array($students)) {
+                    foreach ($students as $student_id) {
+                        $wpdb->insert(
+                            $wpdb->prefix . 'amelia_customer_bookings',
+                            array(
+                                'appointmentId' => $appointment_id,
+                                'customerId' => $student_id,
+                                'status' => 'approved',
+                                'price' => 0,
+                                'persons' => 1,
+                                'created' => current_time('mysql')
+                            )
+                        );
                     }
                 }
             }
@@ -254,27 +243,7 @@ function ace_save_class_meta($post_id) {
 }
 add_action('save_post_amelia_class', 'ace_save_class_meta');
 
-// Enqueue scripts and styles
-function ace_enqueue_admin_scripts($hook) {
-    if (!in_array($hook, array('post.php', 'post-new.php'))) {
-        return;
-    }
-
-    $screen = get_current_screen();
-    if ('amelia_class' !== $screen->post_type) {
-        return;
-    }
-
-    wp_enqueue_style('ace-admin', ACE_PLUGIN_URL . 'css/admin.css');
-    wp_enqueue_script('ace-admin', ACE_PLUGIN_URL . 'js/admin.js', array('jquery'), '1.0', true);
-    wp_localize_script('ace-admin', 'aceAjax', array(
-        'ajaxurl' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('ace_nonce')
-    ));
-}
-add_action('admin_enqueue_scripts', 'ace_enqueue_admin_scripts');
-
-// Helper function for getting class sessions
+// Helper function to get class sessions
 function ace_get_class_sessions($class_id) {
     global $wpdb;
     return $wpdb->get_results($wpdb->prepare(
@@ -290,3 +259,25 @@ function ace_get_class_sessions($class_id) {
         $class_id
     ));
 }
+
+// Enqueue scripts and styles
+function ace_enqueue_admin_scripts($hook) {
+    global $post;
+
+    if (!in_array($hook, array('post.php', 'post-new.php')) || 
+        !is_object($post) || 
+        'amelia_class' !== $post->post_type) {
+        return;
+    }
+
+    wp_enqueue_style('ace-admin', ACE_PLUGIN_URL . 'css/admin.css');
+    wp_enqueue_script('ace-admin', ACE_PLUGIN_URL . 'js/admin.js', array('jquery'), '1.0', true);
+    wp_localize_script('ace-admin', 'aceAjax', array(
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('ace_nonce')
+    ));
+}
+add_action('admin_enqueue_scripts', 'ace_enqueue_admin_scripts');
+
+// Include AJAX handlers
+require_once ACE_PLUGIN_PATH . 'includes/ajax-handlers.php';

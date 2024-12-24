@@ -1,19 +1,21 @@
-/* css/admin.css */
-.ace-container {
-    padding: 20px;
-    max-width: 1200px;
-}
-
+/* Main container styles */
 .ace-meta-box {
+    padding: 12px;
     background: #fff;
-    padding: 15px;
-    margin-bottom: 20px;
     border: 1px solid #ccd0d4;
-    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    margin-bottom: 20px;
 }
 
+/* Form row styling */
 .ace-form-row {
-    margin-bottom: 15px;
+    margin-bottom: 20px;
+}
+
+.ace-form-row h3 {
+    margin: 0 0 10px;
+    padding: 0;
+    font-size: 14px;
+    color: #23282d;
 }
 
 .ace-form-row label {
@@ -22,21 +24,48 @@
     font-weight: 600;
 }
 
-.ace-form-row input[type="text"],
-.ace-form-row input[type="date"],
-.ace-form-row input[type="time"],
-.ace-form-row select {
+/* Schedule inputs */
+.schedule-inputs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.schedule-inputs input {
     width: 100%;
-    max-width: 400px;
 }
 
-.ace-student-list {
-    margin-top: 20px;
+/* Class days checkboxes */
+.class-days {
+    margin-top: 15px;
 }
 
+.class-days .checkbox-label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: normal;
+}
+
+/* Student management */
+.student-management {
+    margin-bottom: 15px;
+}
+
+.student-management select {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+#add_student {
+    width: 100%;
+}
+
+/* Student list table */
 .ace-student-list table {
     width: 100%;
     border-collapse: collapse;
+    margin-top: 10px;
 }
 
 .ace-student-list th,
@@ -46,67 +75,28 @@
     border-bottom: 1px solid #e5e5e5;
 }
 
-.ace-attendance-form {
-    max-width: 800px;
-    margin: 20px auto;
+.ace-student-list th {
+    background: #f8f9fa;
+    font-weight: 600;
 }
 
-.ace-report-container {
-    margin-top: 20px;
-}
-
-.ace-report-card {
-    background: #fff;
-    padding: 20px;
-    margin-bottom: 20px;
-    border: 1px solid #ccd0d4;
-    box-shadow: 0 1px 1px rgba(0,0,0,.04);
-}
-
-.ace-chart-container {
-    height: 400px;
-    margin: 20px 0;
-}
-
-.ace-filters {
-    display: flex;
-    gap: 15px;
-    margin-bottom: 20px;
-    align-items: flex-end;
-}
-
-.ace-filters .filter-group {
-    flex: 1;
-}
-
-.ace-session-list {
-    margin-top: 20px;
-}
-
-.ace-bulk-actions {
-    margin: 10px 0;
-    padding: 10px;
-    background: #f5f5f5;
-    border: 1px solid #ccd0d4;
-}
-
-.select2-container {
-    min-width: 200px;
-}
-
-/* Progress indicator styles */
-.ace-progress {
+/* Sessions table */
+#class_sessions table {
     width: 100%;
-    height: 20px;
-    background-color: #f0f0f1;
-    border-radius: 10px;
-    overflow: hidden;
+    border-collapse: collapse;
+    margin-top: 10px;
 }
 
-.ace-progress-bar {
-    height: 100%;
-    background-color: #2271b1;
-    transition: width 0.3s ease;
+#class_sessions th,
+#class_sessions td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+#class_sessions th {
+    background: #f8f9fa;
+    font-weight: 600;
 }
 
 /* Modal styles */
@@ -117,42 +107,77 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0, 0, 0, 0.6);
     z-index: 100000;
 }
 
-.ace-modal-content {
+.ace-modal .modal-content {
     position: relative;
     background: #fff;
-    width: 90%;
-    max-width: 800px;
     margin: 50px auto;
     padding: 20px;
+    width: 90%;
+    max-width: 800px;
     border-radius: 3px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
 }
 
-.ace-modal-close {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    cursor: pointer;
+/* Attendance form styles */
+.attendance-form table {
+    width: 100%;
+    margin: 15px 0;
 }
 
-/* Dashboard widgets */
-.ace-dashboard-widget {
-    padding: 12px;
+.attendance-form th,
+.attendance-form td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #e5e5e5;
 }
 
-.ace-stat-card {
-    background: #fff;
+.attendance-form select,
+.attendance-form input[type="text"] {
+    width: 100%;
+}
+
+.attendance-actions {
+    margin-top: 20px;
+    text-align: right;
+}
+
+.attendance-actions button {
+    margin-left: 10px;
+}
+
+/* Helper classes */
+.no-students,
+.no-sessions {
     padding: 15px;
-    margin-bottom: 15px;
-    border: 1px solid #ccd0d4;
-    border-left: 4px solid #2271b1;
+    background: #f8f9fa;
+    border: 1px solid #e5e5e5;
+    text-align: center;
+    color: #666;
 }
 
-.ace-stat-value {
-    font-size: 24px;
-    font-weight: 600;
-    margin: 10px 0;
+/* Button states */
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 782px) {
+    .schedule-inputs {
+        grid-template-columns: 1fr;
+    }
+    
+    .ace-student-list th:nth-child(3),
+    .ace-student-list td:nth-child(3) {
+        display: none;
+    }
+    
+    .attendance-form .modal-content {
+        margin: 20px;
+        width: auto;
+    }
 }
