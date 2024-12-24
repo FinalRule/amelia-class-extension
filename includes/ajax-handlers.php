@@ -18,7 +18,7 @@ function ace_ajax_add_student() {
     
     global $wpdb;
     
-    // Verify student exists and is actually a customer
+    // Verify student exists
     $student = $wpdb->get_row($wpdb->prepare(
         "SELECT * FROM {$wpdb->prefix}amelia_users WHERE id = %d AND type = 'customer'",
         $student_id
@@ -30,19 +30,27 @@ function ace_ajax_add_student() {
     }
     
     // Get all appointments for this class
-    $appointments = $wpdb->get_col($wpdb->prepare(
+    $appointments = $wpdb->get_results($wpdb->prepare(
         "SELECT appointment_id FROM {$wpdb->prefix}amelia_class_sessions WHERE class_id = %d",
         $class_id
     ));
     
-    foreach ($appointments as $appointment_id) {
-        $wpdb->insert($wpdb->prefix . 'amelia_customer_bookings', array(
-            'appointmentId' => $appointment_id,
-            'customerId' => $student_id,
-            'status' => 'approved'
-        ));
+    // Add student to each appointment
+    foreach ($appointments as $session) {
+        $wpdb->insert(
+            $wpdb->prefix . 'amelia_customer_bookings',
+            array(
+                'appointmentId' => $session->appointment_id,
+                'customerId' => $student_id,
+                'status' => 'approved',
+                'price' => 0,
+                'persons' => 1,
+                'created' => current_time('mysql')
+            )
+        );
     }
     
+    // Add to class meta
     $current_students = get_post_meta($class_id, '_students', true);
     if (!is_array($current_students)) {
         $current_students = array();
@@ -67,17 +75,18 @@ function ace_ajax_remove_student() {
     
     global $wpdb;
     
-    // Remove from all appointments
-    $appointments = $wpdb->get_col($wpdb->prepare(
+    // Get all appointments for this class
+    $appointments = $wpdb->get_results($wpdb->prepare(
         "SELECT appointment_id FROM {$wpdb->prefix}amelia_class_sessions WHERE class_id = %d",
         $class_id
     ));
     
-    foreach ($appointments as $appointment_id) {
+    // Remove from each appointment
+    foreach ($appointments as $session) {
         $wpdb->delete(
             $wpdb->prefix . 'amelia_customer_bookings',
             array(
-                'appointmentId' => $appointment_id,
+                'appointmentId' => $session->appointment_id,
                 'customerId' => $student_id
             )
         );
@@ -105,79 +114,37 @@ function ace_ajax_get_attendance_form() {
     $session_id = intval($_GET['session_id']);
     global $wpdb;
 
-    // Get appointment ID from session
-    $appointment_id = $wpdb->get_var($wpdb->prepare(
-        "SELECT appointment_id FROM {$wpdb->prefix}amelia_class_sessions WHERE id = %d",
+    // Get appointment ID
+    $appointment = $wpdb->get_row($wpdb->prepare(
+        "SELECT s.appointment_id, a.bookingStart 
+         FROM {$wpdb->prefix}amelia_class_sessions s
+         JOIN {$wpdb->prefix}amelia_appointments a ON a.id = s.appointment_id
+         WHERE s.id = %d",
         $session_id
     ));
 
-    // Get students for this appointment
+    if (!$appointment) {
+        wp_send_json_error('Session not found');
+        return;
+    }
+
+    // Get students
     $students = $wpdb->get_results($wpdb->prepare(
         "SELECT 
             u.*, 
-            a.status as attendance_status,
-            a.notes as attendance_notes
+            ca.status as attendance_status,
+            ca.notes as attendance_notes
         FROM {$wpdb->prefix}amelia_users u
         JOIN {$wpdb->prefix}amelia_customer_bookings cb ON cb.customerId = u.id
-        LEFT JOIN {$wpdb->prefix}amelia_class_attendance a ON a.student_id = u.id AND a.session_id = %d
+        LEFT JOIN {$wpdb->prefix}amelia_class_attendance ca ON ca.student_id = u.id AND ca.session_id = %d
         WHERE cb.appointmentId = %d AND u.type = 'customer'
         ORDER BY u.firstName, u.lastName",
         $session_id,
-        $appointment_id
+        $appointment->appointment_id
     ));
 
     ob_start();
-    ?>
-    <div class="attendance-form">
-        <h3><?php _e('Take Attendance', 'amelia-class-extension'); ?></h3>
-        <form id="attendance_form" data-session-id="<?php echo esc_attr($session_id); ?>">
-            <?php wp_nonce_field('ace_save_attendance', 'attendance_nonce'); ?>
-            <table class="wp-list-table widefat">
-                <thead>
-                    <tr>
-                        <th><?php _e('Student', 'amelia-class-extension'); ?></th>
-                        <th><?php _e('Status', 'amelia-class-extension'); ?></th>
-                        <th><?php _e('Notes', 'amelia-class-extension'); ?></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($students as $student): ?>
-                        <tr>
-                            <td><?php echo esc_html($student->firstName . ' ' . $student->lastName); ?></td>
-                            <td>
-                                <select name="attendance[<?php echo $student->id; ?>][status]">
-                                    <option value="present" <?php selected($student->attendance_status, 'present'); ?>>
-                                        <?php _e('Present', 'amelia-class-extension'); ?>
-                                    </option>
-                                    <option value="absent" <?php selected($student->attendance_status, 'absent'); ?>>
-                                        <?php _e('Absent', 'amelia-class-extension'); ?>
-                                    </option>
-                                    <option value="late" <?php selected($student->attendance_status, 'late'); ?>>
-                                        <?php _e('Late', 'amelia-class-extension'); ?>
-                                    </option>
-                                </select>
-                            </td>
-                            <td>
-                                <input type="text" 
-                                       name="attendance[<?php echo $student->id; ?>][notes]" 
-                                       value="<?php echo esc_attr($student->attendance_notes); ?>"
-                                       class="widefat">
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <div class="attendance-actions">
-                <button type="submit" class="button button-primary">
-                    <?php _e('Save Attendance', 'amelia-class-extension'); ?>
-                </button>
-                <button type="button" class="button close-modal">
-                    <?php _e('Cancel', 'amelia-class-extension'); ?>
-                </button>
-            </div>
-        </form>
-    </div>
-    <?php
+    include(ACE_PLUGIN_PATH . 'templates/attendance-form.php');
     $html = ob_get_clean();
     
     wp_send_json_success(['html' => $html]);
@@ -204,84 +171,13 @@ function ace_ajax_save_attendance() {
                 'session_id' => $session_id,
                 'student_id' => intval($student_id),
                 'status' => sanitize_text_field($data['status']),
-                'notes' => sanitize_textarea_field($data['notes'])
+                'notes' => sanitize_textarea_field($data['notes']),
+                'created_at' => current_time('mysql')
             ),
-            array('%d', '%d', '%s', '%s')
+            array('%d', '%d', '%s', '%s', '%s')
         );
     }
     
     wp_send_json_success();
 }
 add_action('wp_ajax_ace_save_attendance', 'ace_ajax_save_attendance');
-
-// Get class sessions
-function ace_ajax_get_class_sessions() {
-    check_ajax_referer('ace_nonce', 'nonce');
-    
-    if (!current_user_can('edit_posts')) {
-        wp_send_json_error('Insufficient permissions');
-    }
-
-    $class_id = intval($_GET['class_id']);
-    
-    global $wpdb;
-    
-    $sessions = $wpdb->get_results($wpdb->prepare(
-        "SELECT 
-            s.*,
-            a.bookingStart,
-            a.bookingEnd,
-            a.status as appointment_status
-        FROM {$wpdb->prefix}amelia_class_sessions s
-        JOIN {$wpdb->prefix}amelia_appointments a ON a.id = s.appointment_id
-        WHERE s.class_id = %d
-        ORDER BY a.bookingStart ASC",
-        $class_id
-    ));
-    
-    wp_send_json_success(['sessions' => $sessions]);
-}
-add_action('wp_ajax_ace_get_class_sessions', 'ace_ajax_get_class_sessions');
-
-// Save session modifications
-function ace_ajax_save_session() {
-    check_ajax_referer('ace_nonce', 'nonce');
-    
-    if (!current_user_can('edit_posts')) {
-        wp_send_json_error('Insufficient permissions');
-    }
-
-    $session_id = intval($_POST['session_id']);
-    $new_date = sanitize_text_field($_POST['date']);
-    $new_time = sanitize_text_field($_POST['time']);
-    
-    global $wpdb;
-    
-    // Get appointment ID
-    $appointment_id = $wpdb->get_var($wpdb->prepare(
-        "SELECT appointment_id FROM {$wpdb->prefix}amelia_class_sessions WHERE id = %d",
-        $session_id
-    ));
-    
-    if ($appointment_id) {
-        $datetime = $new_date . ' ' . $new_time;
-        $end_datetime = date('Y-m-d H:i:s', strtotime($datetime . ' +1 hour'));
-        
-        $wpdb->update(
-            $wpdb->prefix . 'amelia_appointments',
-            array(
-                'bookingStart' => $datetime,
-                'bookingEnd' => $end_datetime
-            ),
-            array('id' => $appointment_id),
-            array('%s', '%s'),
-            array('%d')
-        );
-        
-        wp_send_json_success();
-    } else {
-        wp_send_json_error('Invalid session');
-    }
-}
-add_action('wp_ajax_ace_save_session', 'ace_ajax_save_session');
-?>
