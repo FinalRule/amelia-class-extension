@@ -3,7 +3,7 @@
  * Plugin Name: Amelia Class Extension
  * Description: Adds class management functionality to Amelia booking plugin
  * Version: 1.0
- * Author: Your Name
+ * Author: Mamdouh Jalal
  * Text Domain: amelia-class-extension
  */
 
