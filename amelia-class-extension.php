@@ -175,6 +175,21 @@ function ace_save_class_meta($post_id) {
     // Get or create service
     $service = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}amelia_services WHERE name = 'Class Session'");
     if (!$service) {
+
+            // First, get any category ID (we need one since it can't be null)
+    $category_id = $wpdb->get_var("SELECT id FROM {$wpdb->prefix}amelia_categories LIMIT 1");
+    if (!$category_id) {
+        // Create a category if none exists
+        $wpdb->insert(
+            $wpdb->prefix . 'amelia_categories',
+            array(
+                'name' => 'Class Sessions',
+                'status' => 'visible'
+            )
+        );
+        $category_id = $wpdb->insert_id;
+    }
+
         error_log('Creating new service');
         $wpdb->insert(
             $wpdb->prefix . 'amelia_services',
@@ -184,7 +199,7 @@ function ace_save_class_meta($post_id) {
                 'color' => '#1788FB',
                 'price' => 0,
                 'status' => 'visible',
-                'categoryId' => null,
+                'categoryId' => $category_id, // Use the category ID we found/created
                 'minCapacity' => 1,
                 'maxCapacity' => 20,
                 'duration' => 3600,
@@ -248,7 +263,7 @@ function ace_save_class_meta($post_id) {
                 'bookingStart' => $booking_start,
                 'bookingEnd' => $booking_end,
                 'notifyParticipants' => 0,
-                'created' => current_time('mysql')
+                'createdAt' => current_time('mysql')
             );
 
             $wpdb->insert($wpdb->prefix . 'amelia_appointments', $appointment_data);
