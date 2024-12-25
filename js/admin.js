@@ -1,6 +1,5 @@
 jQuery(document).ready(function($) {
     // Add student to class
-// Add student to class
 $('#add_student').on('click', function() {
     const studentId = $('#student_id').val();
     const classId = $('#post_ID').val();

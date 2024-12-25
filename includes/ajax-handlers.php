@@ -9,13 +9,25 @@ if (!defined('ABSPATH')) {
 function ace_ajax_add_student() {
     check_ajax_referer('ace_nonce', 'nonce');
     
+    error_log('Debug: ace_ajax_add_student called');
+    
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'ace_nonce')) {
+        error_log('Debug: Nonce verification failed');
+        wp_send_json_error('Security check failed');
+        return;
+    }
+    
     if (!current_user_can('edit_posts')) {
+        error_log('Debug: Insufficient permissions');
         wp_send_json_error('Insufficient permissions');
+        return;
     }
     
     $class_id = intval($_POST['class_id']);
     $student_id = intval($_POST['student_id']);
-    
+  
+    error_log("Debug: Adding student $student_id to class $class_id");
+
     global $wpdb;
     
     // Verify student exists
@@ -25,11 +37,29 @@ function ace_ajax_add_student() {
     ));
     
     if (!$student) {
+        error_log('Debug: Invalid student');
         wp_send_json_error('Invalid student');
         return;
     }
+
+    try {
+        // Add to class meta
+        $current_students = get_post_meta($class_id, '_students', true);
+        if (!is_array($current_students)) {
+            $current_students = array();
+        }
+        $current_students[] = $student_id;
+        update_post_meta($class_id, '_students', array_unique($current_students));
+        
+        error_log('Debug: Student added successfully');
+        wp_send_json_success();
+    } catch (Exception $e) {
+        error_log('Debug: Error adding student: ' . $e->getMessage());
+        wp_send_json_error($e->getMessage());
+    }
     
-    // Get all appointments for this class
+
+// Get all appointments for this class
     $appointments = $wpdb->get_results($wpdb->prepare(
         "SELECT appointment_id FROM {$wpdb->prefix}amelia_class_sessions WHERE class_id = %d",
         $class_id

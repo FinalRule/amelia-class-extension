@@ -127,11 +127,14 @@ function ace_class_meta_box_callback($post) {
 
 // Save class meta and create appointments
 function ace_save_class_meta($post_id) {
+    error_log('=== Starting ace_save_class_meta ===');
+
     // Verify nonce and permissions
     if (!isset($_POST['ace_class_meta_nonce']) || 
         !wp_verify_nonce($_POST['ace_class_meta_nonce'], 'ace_save_class_meta') ||
         defined('DOING_AUTOSAVE') && DOING_AUTOSAVE ||
         !current_user_can('edit_post', $post_id)) {
+        error_log('Early return due to security checks');
         return;
     }
 
@@ -140,6 +143,7 @@ function ace_save_class_meta($post_id) {
     // Save basic meta
     if (isset($_POST['teacher_id'])) {
         update_post_meta($post_id, '_teacher_id', sanitize_text_field($_POST['teacher_id']));
+        error_log('Teacher ID saved: ' . $_POST['teacher_id']);
     }
 
     // Save schedule
@@ -147,6 +151,12 @@ function ace_save_class_meta($post_id) {
     $end_date = isset($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : '';
     $class_time = isset($_POST['class_time']) ? sanitize_text_field($_POST['class_time']) : '';
     $class_days = isset($_POST['class_days']) ? array_map('sanitize_text_field', $_POST['class_days']) : array();
+
+    error_log('Schedule data:');
+    error_log('Start date: ' . $start_date);
+    error_log('End date: ' . $end_date);
+    error_log('Time: ' . $class_time);
+    error_log('Days: ' . print_r($class_days, true));
 
     update_post_meta($post_id, '_start_date', $start_date);
     update_post_meta($post_id, '_end_date', $end_date);
@@ -156,6 +166,7 @@ function ace_save_class_meta($post_id) {
     // Check if we have all required data
     if (empty($start_date) || empty($end_date) || empty($class_time) || 
         empty($class_days) || empty($_POST['teacher_id'])) {
+        error_log('Missing required data - skipping session creation');
         return;
     }
 
@@ -164,6 +175,7 @@ function ace_save_class_meta($post_id) {
     // Get or create service
     $service = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}amelia_services WHERE name = 'Class Session'");
     if (!$service) {
+        error_log('Creating new service');
         $wpdb->insert(
             $wpdb->prefix . 'amelia_services',
             array(
@@ -182,6 +194,7 @@ function ace_save_class_meta($post_id) {
             )
         );
         $service_id = $wpdb->insert_id;
+        error_log('New service created with ID: ' . $service_id);
 
         // Link service to provider
         $wpdb->insert(
@@ -196,6 +209,8 @@ function ace_save_class_meta($post_id) {
         );
     } else {
         $service_id = $service->id;
+        error_log('New service created with ID: ' . $service_id);
+
     }
 
     // Remove existing sessions
@@ -216,12 +231,14 @@ function ace_save_class_meta($post_id) {
     $end->modify('+1 day');
     $interval = new DateInterval('P1D');
     $period = new DatePeriod($start, $interval, $end);
+    error_log('Creating sessions from ' . $start_date . ' to ' . $end_date);
 
     foreach ($period as $date) {
         $day_of_week = strtolower($date->format('l'));
         if (in_array($day_of_week, $class_days)) {
             $booking_start = $date->format('Y-m-d') . ' ' . $class_time;
             $booking_end = date('Y-m-d H:i:s', strtotime($booking_start . ' +1 hour'));
+            error_log('Creating session for ' . $booking_start);
 
             // Create appointment
             $appointment_data = array(
@@ -238,6 +255,8 @@ function ace_save_class_meta($post_id) {
             $appointment_id = $wpdb->insert_id;
 
             if ($appointment_id) {
+
+                error_log('Appointment created with ID: ' . $appointment_id);
                 // Link to class
                 $wpdb->insert(
                     $wpdb->prefix . 'amelia_class_sessions',
