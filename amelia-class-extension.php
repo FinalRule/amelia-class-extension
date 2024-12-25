@@ -263,7 +263,9 @@ function ace_save_class_meta($post_id) {
                 'bookingStart' => $booking_start,
                 'bookingEnd' => $booking_end,
                 'notifyParticipants' => 0,
-                'createdAt' => current_time('mysql')
+                'error' => '', // This field is required according to your SQL
+                'parentId' => null,
+                'locationId' => null
             );
 
             $wpdb->insert($wpdb->prefix . 'amelia_appointments', $appointment_data);
