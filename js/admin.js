@@ -1,41 +1,46 @@
 jQuery(document).ready(function($) {
     // Add student to class
-    $('#add_student').on('click', function() {
-        const studentId = $('#student_id').val();
-        const classId = $('#post_ID').val();
-        
-        if (!studentId) {
-            alert('Please select a student');
-            return;
-        }
-        
-        $.ajax({
-            url: ajaxurl,
-            type: 'POST',
-            data: {
-                action: 'ace_add_student',
-                nonce: aceAjax.nonce,
-                student_id: studentId,
-                class_id: classId
-            },
-            beforeSend: function() {
-                $('#add_student').prop('disabled', true);
-            },
-            success: function(response) {
-                if (response.success) {
-                    location.reload(); // Reload to show updated student list
-                } else {
-                    alert('Failed to add student. Please try again.');
-                }
-            },
-            error: function() {
-                alert('Failed to add student. Please try again.');
-            },
-            complete: function() {
-                $('#add_student').prop('disabled', false);
+// Add student to class
+$('#add_student').on('click', function() {
+    const studentId = $('#student_id').val();
+    const classId = $('#post_ID').val();
+    
+    if (!studentId) {
+        alert('Please select a student');
+        return;
+    }
+    
+    console.log('Adding student:', studentId, 'to class:', classId); // Debug log
+
+    $.ajax({
+        url: ajaxurl,
+        type: 'POST',
+        data: {
+            action: 'ace_add_student',
+            nonce: aceAjax.nonce,
+            student_id: studentId,
+            class_id: classId
+        },
+        beforeSend: function() {
+            $('#add_student').prop('disabled', true);
+        },
+        success: function(response) {
+            console.log('Server response:', response); // Debug log
+            if (response.success) {
+                window.location.reload();
+            } else {
+                alert('Failed to add student: ' + (response.data || 'Unknown error'));
             }
-        });
+        },
+        error: function(xhr, status, error) {
+            console.error('AJAX error:', error);
+            alert('Failed to add student. Please try again.');
+        },
+        complete: function() {
+            $('#add_student').prop('disabled', false);
+        }
     });
+});
 
     // Remove student
     $('.remove-student').on('click', function() {
