@@ -16,6 +16,34 @@ if (!defined('ABSPATH')) {
 define('ACE_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('ACE_PLUGIN_URL', plugin_dir_url(__FILE__));
 
+// Initialize plugin
+function ace_init() {
+    // Load text domain
+    load_plugin_textdomain('amelia-class-extension', false, dirname(plugin_basename(__FILE__)) . '/languages/');
+    
+    // Register post type here instead of directly
+    register_post_type('amelia_class', array(
+        'labels' => array(
+            'name' => 'Classes',
+            'singular_name' => 'Class',
+            'add_new' => 'Add New Class',
+            'add_new_item' => 'Add New Class',
+            'edit_item' => 'Edit Class',
+            'new_item' => 'New Class',
+            'view_item' => 'View Class',
+            'search_items' => 'Search Classes',
+            'not_found' => 'No classes found',
+            'not_found_in_trash' => 'No classes found in trash'
+        ),
+        'public' => true,
+        'has_archive' => true,
+        'supports' => array('title', 'editor'),
+        'menu_icon' => 'dashicons-groups',
+        'show_in_menu' => true
+    ));
+}
+add_action('init', 'ace_init');
+
 // Create tables on plugin activation
 function ace_create_db_tables() {
     global $wpdb;
