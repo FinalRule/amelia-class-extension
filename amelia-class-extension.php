@@ -350,8 +350,34 @@ add_action('admin_enqueue_scripts', 'ace_enqueue_admin_scripts');
 // Include AJAX handlers
 require_once ACE_PLUGIN_PATH . 'includes/ajax-handlers.php';
 ///////////////////
-add_action('wp_enqueue_scripts', function() {
+/**
+ * Load custom template for single class posts
+ */
+function amelia_class_load_template($template) {
     if (is_singular('amelia_class')) {
+        $custom_template = plugin_dir_path(__FILE__) . 'public/templates/single-class.php';
+        if (file_exists($custom_template)) {
+            return $custom_template;
+        }
+    }
+    return $template;
+}
+add_filter('single_template', 'amelia_class_load_template');
+
+////////////////////////
+/**
+ * Enqueue scripts for the frontend
+ */
+function amelia_class_enqueue_scripts() {
+    if (is_singular('amelia_class')) {
+        // Enqueue React and ReactDOM
+        wp_enqueue_script('react', 'https://unpkg.com/react@17/umd/react.development.js', array(), '17.0.0', true);
+        wp_enqueue_script('react-dom', 'https://unpkg.com/react-dom@17/umd/react-dom.development.js', array('react'), '17.0.0', true);
+        
+        // Enqueue Tailwind CSS
+        wp_enqueue_style('tailwindcss', 'https://cdn.tailwindcss.com', array(), '3.0.0');
+        
+        // Enqueue our component
         wp_enqueue_script(
             'amelia-class-details',
             plugins_url('public/js/class-details.js', __FILE__),
@@ -360,4 +386,5 @@ add_action('wp_enqueue_scripts', function() {
             true
         );
     }
-});
+}
+add_action('wp_enqueue_scripts', 'amelia_class_enqueue_scripts');
