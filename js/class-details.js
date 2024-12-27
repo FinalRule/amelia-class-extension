@@ -7,10 +7,10 @@ const ClassDetailsDisplay = () => {
     const [error, setError] = useState(null);
     
     // Get post ID from the div data attribute
-    const postId = document.getElementById('class-details')?.dataset?.postId;
+    const postId = document.getElementById('class-details') ? document.getElementById('class-details').dataset.postId : null;
 
     useEffect(() => {
-        const fetchClassDetails = async () => {
+        async function fetchClassDetails() {
             try {
                 const response = await fetch(`/wp-json/wp/v2/amelia_class/${postId}`);
                 if (!response.ok) {
@@ -25,7 +25,7 @@ const ClassDetailsDisplay = () => {
                 setError(err.message);
                 setLoading(false);
             }
-        };
+        }
 
         if (postId) {
             fetchClassDetails();
