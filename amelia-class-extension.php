@@ -15,7 +15,8 @@ if (!defined('ABSPATH')) {
 // Define plugin constants
 define('ACE_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('ACE_PLUGIN_URL', plugin_dir_url(__FILE__));
-
+require_once plugin_dir_path(__FILE__) . 'includes/api/class-rest-api.php';
+new Amelia_Class_REST_API();
 // Initialize plugin
 function ace_init() {
     // Load text domain
@@ -345,3 +346,15 @@ add_action('admin_enqueue_scripts', 'ace_enqueue_admin_scripts');
 
 // Include AJAX handlers
 require_once ACE_PLUGIN_PATH . 'includes/ajax-handlers.php';
+
+add_action('wp_enqueue_scripts', function() {
+    if (is_singular('amelia_class')) {
+        wp_enqueue_script(
+            'amelia-class-details',
+            plugins_url('public/js/class-details.js', __FILE__),
+            array('react', 'react-dom'),
+            '1.0.0',
+            true
+        );
+    }
+});
