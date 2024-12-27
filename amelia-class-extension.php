@@ -355,7 +355,7 @@ require_once ACE_PLUGIN_PATH . 'includes/ajax-handlers.php';
  */
 function amelia_class_load_template($template) {
     if (is_singular('amelia_class')) {
-        $custom_template = plugin_dir_path(__FILE__) . 'public/templates/single-class.php';
+        $custom_template = plugin_dir_path(__FILE__) . 'templates/single-class.php';
         if (file_exists($custom_template)) {
             return $custom_template;
         }
@@ -380,7 +380,7 @@ function amelia_class_enqueue_scripts() {
         // Enqueue our component
         wp_enqueue_script(
             'amelia-class-details',
-            plugins_url('public/js/class-details.js', __FILE__),
+            plugins_url('js/class-details.js', __FILE__),
             array('react', 'react-dom'),
             '1.0.0',
             true
