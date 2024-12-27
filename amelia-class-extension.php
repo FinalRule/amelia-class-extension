@@ -374,17 +374,27 @@ function amelia_class_enqueue_scripts() {
         wp_enqueue_script('react', 'https://unpkg.com/react@17/umd/react.development.js', array(), '17.0.0', true);
         wp_enqueue_script('react-dom', 'https://unpkg.com/react-dom@17/umd/react-dom.development.js', array('react'), '17.0.0', true);
         
+        // Add Babel for JSX transformation
+        wp_enqueue_script('babel', 'https://unpkg.com/babel-standalone@6/babel.min.js', array(), '6.0.0', true);
+        
         // Enqueue Tailwind CSS
         wp_enqueue_style('tailwindcss', 'https://cdn.tailwindcss.com', array(), '3.0.0');
         
-        // Enqueue our component
+        // Enqueue our component with type="text/babel"
         wp_enqueue_script(
             'amelia-class-details',
             plugins_url('js/class-details.js', __FILE__),
-            array('react', 'react-dom'),
+            array('react', 'react-dom', 'babel'),
             '1.0.0',
             true
         );
+        // Add type="text/babel" to our script
+        add_filter('script_loader_tag', function($tag, $handle, $src) {
+            if ('amelia-class-details' === $handle) {
+                return '<script type="text/babel" src="' . esc_url($src) . '"></script>';
+            }
+            return $tag;
+        }, 10, 3);
     }
 }
 add_action('wp_enqueue_scripts', 'amelia_class_enqueue_scripts');
